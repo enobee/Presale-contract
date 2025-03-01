@@ -30,7 +30,7 @@ export function getPresaleProgramId(cluster: Cluster) {
     case "devnet":
     case "testnet":
       // This is the program ID for the Presale program on devnet and testnet.
-      return new PublicKey("HDekUEGM3hCCHGxorAdMYMhpFVSX14uqydHPHEXsuim4");
+      return new PublicKey("BKCejCiguGFjBSZbwJozgiHKw8stSgvLzZkEZMT2tEmn");
     case "mainnet-beta":
     default:
       return PRESALE_PROGRAM_ID;

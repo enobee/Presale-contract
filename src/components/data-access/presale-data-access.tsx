@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { getPresaleProgram, getPresaleProgramId } from "@project/anchor";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { Account, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useMemo } from "react";
-// import toast from "react-hot-toast";
 import { useCluster, useAnchorProvider } from "./solana/wallet";
 import {
   InitializePresaleProps,
@@ -16,13 +15,13 @@ import {
   DepositTokensProps,
   BuyTokenProps,
   withdrawProceedsProps,
+  WithdrawRemainingTokensProps,
+  claimTokenProps,
 } from "@/types";
 import {
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAccount,
-  getAssociatedTokenAddress,
+  getMint,
 } from "@solana/spl-token";
 import { BN } from "@coral-xyz/anchor";
 import { toast } from "react-toastify";
@@ -44,13 +43,13 @@ export function usePresaleProgram() {
   });
 
   const vaultAccounts = useQuery({
-    queryKey: ["presale", "all", { network }],
+    queryKey: ["presale_vault", { network }],
     queryFn: () => program.account.presaleVaults.all(),
   });
 
-  const userInfoAccounts = useQuery({
-    queryKey: ["presale", "all", { network }],
-    queryFn: () => program.account.userInfo.all(),
+  const userAccounts = useQuery({
+    queryKey: ["user_info", { network }],
+    queryFn: () => program.account.presaleVaults.all(),
   });
 
   const getProgramAccount = useQuery({
@@ -60,23 +59,18 @@ export function usePresaleProgram() {
 
   const wallet = useWallet();
 
-  // Helper function to determine token program
   const getTokenProgram = async (
     mintAddress: PublicKey
   ): Promise<PublicKey> => {
-    try {
-      const accountInfo = await connection.getAccountInfo(mintAddress);
-      if (!accountInfo) throw new Error("Mint account not found");
+    const accountInfo = await connection.getAccountInfo(mintAddress);
+    if (!accountInfo) throw new Error("Mint account not found");
 
-      if (accountInfo.owner.equals(TOKEN_PROGRAM_ID)) {
-        return TOKEN_PROGRAM_ID;
-      } else if (accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID)) {
-        return TOKEN_2022_PROGRAM_ID;
-      }
+    if (accountInfo.owner.equals(TOKEN_PROGRAM_ID)) {
+      return TOKEN_PROGRAM_ID;
+    } else if (accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID)) {
+      return TOKEN_2022_PROGRAM_ID;
+    } else {
       throw new Error("Invalid mint account owner");
-    } catch (error) {
-      console.error("Error determining token program:", error);
-      throw error;
     }
   };
 
@@ -116,48 +110,48 @@ export function usePresaleProgram() {
       toast.success("Presale initialized successfully!");
       return presaleAccounts.refetch();
     },
-    onError: () => toast.error("Failed to initialize account"),
+    onError: () => toast.error("Failed to initialize Presale account"),
   });
 
   return {
     program,
     programId,
     presaleAccounts,
-    vaultAccounts,
-    userInfoAccounts,
     getProgramAccount,
     initializePresale,
+    vaultAccounts,
+    userAccounts,
     getTokenProgram,
   };
 }
 
 export function usePresaleProgramAccount({ account }: { account: PublicKey }) {
   const { network } = useCluster();
+  const { connection } = useAnchorProvider();
   const {
     program,
     presaleAccounts,
     vaultAccounts,
-    userInfoAccounts,
+    userAccounts,
     getTokenProgram,
   } = usePresaleProgram();
 
-  const { connection } = useConnection();
-  const provider = useAnchorProvider();
-
   const presaleAccountQuery = useQuery({
-    queryKey: ["presale", "fetch", { network, account: account }],
+    queryKey: ["presale", "fetch", { network, account: presaleAccounts }],
     queryFn: () => program.account.presale.fetch(account),
     enabled: !!account && !!program, // Only run query when we have both account and program
   });
 
   const vaultAccountQuery = useQuery({
-    queryKey: ["presale-vaults", "fetch", { network, account }],
+    queryKey: ["presale_vault", "fetch", { network, account: vaultAccounts }],
     queryFn: () => program.account.presaleVaults.fetch(account),
+    enabled: !!account && !!program,
   });
 
   const userAccountQuery = useQuery({
-    queryKey: ["user-info", "fetch", { network, account }],
+    queryKey: ["user_info", "fetch", { network, account: userAccounts }],
     queryFn: () => program.account.userInfo.fetch(account),
+    enabled: !!account && !!program,
   });
 
   const initializePresaleVault = useMutation<
@@ -165,8 +159,8 @@ export function usePresaleProgramAccount({ account }: { account: PublicKey }) {
     Error,
     InitializePresaleVaultsProps
   >({
-    mutationKey: ["presale", "initialize", { network }],
-    mutationFn: async (usdtMint) => {
+    mutationKey: ["presale_vault", "initialize", { network }],
+    mutationFn: async ({ usdtMint }) => {
       if (!wallet.publicKey) {
         throw new Error("Wallet not connected");
       }
@@ -178,7 +172,7 @@ export function usePresaleProgramAccount({ account }: { account: PublicKey }) {
         .accounts({
           owner: wallet.publicKey,
           usdtMint: mintPubkey,
-          tokenProgram: tokenProgramId,
+          tokenProgram: tokenProgramId!,
         })
         .rpc();
     },
@@ -186,31 +180,18 @@ export function usePresaleProgramAccount({ account }: { account: PublicKey }) {
       toast.success("Presale Vaults initialized successfully!");
       return vaultAccounts.refetch();
     },
-    onError: () => toast.error("Failed to initialize Presale Vaults"),
+    onError: (error) => {
+      toast.error("Failed to initialize Presale Vaults");
+      console.error(error);
+    },
   });
-
-  const fetchTokenMint = async () => {
-    const presaleAccount = await presaleAccountQuery.refetch();
-    if (!presaleAccount.data?.tokenMint) {
-      throw new Error("Token mint not found");
-    }
-    return new PublicKey(presaleAccount.data.tokenMint);
-  };
-
-  const fetchUsdtMint = async () => {
-    const vaultAccount = await vaultAccountQuery.refetch();
-    if (!vaultAccount.data?.usdtMint) {
-      throw new Error("USDT mint not found");
-    }
-    return new PublicKey(vaultAccount.data.usdtMint);
-  };
 
   // Chainlink program ID and feed address for SOL/USD on devnet
   const CHAINLINK_PROGRAM_ID = new PublicKey(
     "HEvSKofvBgfaexv23kMabbYqxasxU3mQ4ibBMEmJWHny"
   ); // Chainlink program ID on devnet
   const SOL_USD_FEED_ADDRESS = new PublicKey(
-    "HgTtcbcmp5BeThax5AU8vg4VwK79qAvAKKFMs8txMLW6"
+    "99B2bTijsU6f1GCT73HmdR7HCFFjGMBcPZY6jZ96ynrR"
   ); // SOL/USD feed address on devnet
   const PaymentMethod = {
     USDT: { usdt: {} },
@@ -221,36 +202,51 @@ export function usePresaleProgramAccount({ account }: { account: PublicKey }) {
 
   const depositTokensMutation = useMutation<string, Error, DepositTokensProps>({
     mutationKey: ["presale", "deposit_presale_tokens", { network, account }],
-    mutationFn: async ({ amount, tokenMintKey }) => {
+    mutationFn: async ({ amount, tokenMintKey, ownerTokenAccount }) => {
       if (!wallet.publicKey) {
         throw new Error("Wallet not connected");
       }
+
+      const mintInfo = await connection.getAccountInfo(tokenMintKey);
+      if (!mintInfo) {
+        throw new Error("Token mint account not found");
+      }
+      const decimals = mintInfo.data[44];
+      // Use the actual decimals from the mint
+      const multiplier = new BN(10).pow(new BN(decimals));
       const tokenProgramId = await getTokenProgram(tokenMintKey);
-      // await findAssociatedTokenAddress(wallet.publicKey, tokenMintKey);
       return program.methods
-        .depositPresaleTokens(new BN(amount).mul(new BN(10).pow(new BN(9))))
+        .depositPresaleTokens(new BN(amount).mul(multiplier))
         .accounts({
           owner: wallet.publicKey,
           tokenMint: tokenMintKey,
+          ownerTokenAccount,
           tokenProgram: tokenProgramId,
-        })
+        } as any)
         .signers([])
         .rpc();
     },
     onSuccess: (tx) => {
-      // transactionToast(tx);
+      toast.success("Tokens Deposited successfully");
       return presaleAccounts.refetch();
     },
+    onError: () => toast.error("Failed to Deposit Tokens"),
   });
 
   const buyTokenMutation = useMutation<string, Error, BuyTokenProps>({
     mutationKey: ["presale", "buy_tokens", { network, account }],
-    mutationFn: async ({ paymentMethod, amount }) => {
+    mutationFn: async ({
+      paymentMethod,
+      amount,
+      usdtMint,
+      tokenMint,
+      buyerUsdtAccount,
+    }) => {
       if (!wallet.publicKey) {
         throw new Error("Wallet not connected");
       }
-      const getUsdtMint = await fetchUsdtMint();
-      const tokenProgramId = await getTokenProgram(getUsdtMint);
+
+      const tokenProgramId = await getTokenProgram(usdtMint);
       let method;
       if (paymentMethod === "USDT") {
         method = PaymentMethod.USDT;
@@ -262,50 +258,54 @@ export function usePresaleProgramAccount({ account }: { account: PublicKey }) {
       return program.methods
         .buyTokens(method, new BN(amount))
         .accounts({
-          usdtMint: getUsdtMint,
+          usdtMint: usdtMint,
+          tokenMint: tokenMint,
           buyer: wallet.publicKey,
+          buyerAta: buyerUsdtAccount,
           chainlinkFeed: SOL_USD_FEED_ADDRESS,
           chainlinkProgram: CHAINLINK_PROGRAM_ID,
           tokenProgram: tokenProgramId,
-        })
+        } as any)
         .signers([])
         .rpc();
     },
     onSuccess: (tx) => {
-      // transactionToast(tx);
-      return [
-        presaleAccounts.refetch(),
-        vaultAccounts.refetch(),
-        userInfoAccounts.refetch(),
-      ];
+      toast.success(tx);
+      toast.success("Successful Purchase of presale tokens");
+      return [presaleAccounts.refetch()];
+    },
+    onError: (error) => {
+      toast.error("Failed to purchase presale tokens");
+      console.log(error);
     },
   });
 
-  const claimTokenMutation = useMutation({
+  const claimTokenMutation = useMutation<string, Error, claimTokenProps>({
     mutationKey: ["presale", "claim_tokens", { network, account }],
-    mutationFn: async () => {
+    mutationFn: async ({ tokenMintKey, buyerTokenAccount }) => {
       if (!wallet.publicKey) {
         throw new Error("Wallet not connected");
       }
-      const getTokenMint = await fetchTokenMint();
-      const tokenProgramId = await getTokenProgram(getTokenMint);
+      const tokenProgramId = await getTokenProgram(tokenMintKey);
       return program.methods
         .claimTokens()
         .accounts({
-          tokenMint: getTokenMint,
+          tokenMint: tokenMintKey,
           buyer: wallet.publicKey,
+          buyerTokenAccount,
           tokenProgram: tokenProgramId,
-        })
+        } as any)
+
         .signers([])
         .rpc();
     },
     onSuccess: (tx) => {
-      // transactionToast(tx);
-      return [
-        presaleAccounts.refetch(),
-        vaultAccounts.refetch(),
-        userInfoAccounts.refetch(),
-      ];
+      toast.error("Tokens claimed successfully");
+      return [presaleAccounts.refetch()];
+    },
+    onError: (error) => {
+      toast.error("Failed to claim tokens");
+      console.log(error);
     },
   });
 
@@ -315,12 +315,11 @@ export function usePresaleProgramAccount({ account }: { account: PublicKey }) {
     withdrawProceedsProps
   >({
     mutationKey: ["presale", "withdraw_proceeds", { network, account }],
-    mutationFn: async ({ paymentMethod }) => {
+    mutationFn: async ({ paymentMethod, usdtMint, ownerUsdtAccount }) => {
       if (!wallet.publicKey) {
         throw new Error("Wallet not connected");
       }
-      const getUsdtMint = await fetchUsdtMint();
-      const tokenProgramId = await getTokenProgram(getUsdtMint);
+      const tokenProgramId = await getTokenProgram(usdtMint);
       let method;
       if (paymentMethod === "USDT") {
         method = PaymentMethod.USDT;
@@ -337,38 +336,54 @@ export function usePresaleProgramAccount({ account }: { account: PublicKey }) {
         .withdrawProceeds(method)
         .accounts({
           owner: wallet.publicKey,
-          usdtMint: getUsdtMint,
+          usdtMint: usdtMint,
+          ownerUsdtToken: ownerUsdtAccount,
           tokenProgram: tokenProgramId,
-        })
+        } as any)
         .signers([])
         .rpc();
     },
     onSuccess: (tx) => {
-      return [presaleAccounts.refetch(), vaultAccounts.refetch()];
+      toast.success(tx);
+      toast.success("Successful withdrawal of presale proceeds");
+      return [presaleAccounts.refetch()];
+    },
+    onError: (error) => {
+      toast.error("Failed to withdraw presale proceeds");
+      console.log(error);
     },
   });
 
-  const withdrawRemainingTokenMutation = useMutation({
+  const withdrawRemainingTokenMutation = useMutation<
+    string,
+    Error,
+    WithdrawRemainingTokensProps
+  >({
     mutationKey: ["presale", "withdraw_tokens", { network, account }],
-    mutationFn: async () => {
+    mutationFn: async ({ tokenMintKey, ownerTokenAccount }) => {
       if (!wallet.publicKey) {
         throw new Error("Wallet not connected");
       }
-      const getTokenMint = await fetchTokenMint();
-      const tokenProgramId = await getTokenProgram(getTokenMint);
+      const tokenProgramId = await getTokenProgram(tokenMintKey);
       return program.methods
         .withdrawTokens()
         .accounts({
           owner: wallet.publicKey,
-          tokenMint: getTokenMint,
+          tokenMint: tokenMintKey,
+          ownerTokenAccount,
           tokenProgram: tokenProgramId,
-        })
+        } as any)
         .signers([])
         .rpc();
     },
     onSuccess: (tx) => {
-      // transactionToast(tx);
+      toast.success(tx);
+      toast.success("Remaining Tokens from Vault Withdrawn Successfully");
       return presaleAccounts.refetch();
+    },
+    onError: (error) => {
+      toast.error("Failed to withdraw Remaining tokens from the vault");
+      console.log(error);
     },
   });
 

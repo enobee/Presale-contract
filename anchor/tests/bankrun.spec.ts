@@ -16,7 +16,6 @@ import {
   createAssociatedTokenAccount,
   createMint,
   mintTo,
-  getAccount,
 } from "spl-token-bankrun";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 import { TOKEN_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
@@ -149,7 +148,7 @@ describe("Presale Smart Contract Tests", () => {
     );
     // @ts-expect-error - Type error in @solana/web3js dependency
     [vaultAccount, vaultAccountBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), presaleAccount.toBuffer()],
+      [Buffer.from("presale_vault"), presaleAccount.toBuffer()],
       program.programId
     );
     // @ts-expect-error - Type error in @solana/web3js dependency
@@ -311,6 +310,7 @@ describe("Presale Smart Contract Tests", () => {
       .buyTokens(PaymentMethod.USDT, usdtAmount1)
       .accounts({
         usdtMint,
+        tokenMint,
         buyer: user_wallet.publicKey,
         chainlinkFeed: mockChainlinkFeed,
         chainlinkProgram: mockChainlinkProgram.publicKey,
@@ -325,6 +325,7 @@ describe("Presale Smart Contract Tests", () => {
       .buyTokens(PaymentMethod.USDT, usdtAmount2)
       .accounts({
         usdtMint,
+        tokenMint,
         buyer: user_wallet.publicKey,
         chainlinkFeed: mockChainlinkFeed,
         chainlinkProgram: mockChainlinkProgram.publicKey,
@@ -339,6 +340,7 @@ describe("Presale Smart Contract Tests", () => {
       .buyTokens(PaymentMethod.SOL, solAmount1)
       .accounts({
         usdtMint,
+        tokenMint,
         buyer: user_wallet.publicKey,
         chainlinkFeed: mockChainlinkFeed,
         chainlinkProgram: mockChainlinkProgram.publicKey,
@@ -353,6 +355,7 @@ describe("Presale Smart Contract Tests", () => {
       .buyTokens(PaymentMethod.SOL, solAmount2)
       .accounts({
         usdtMint,
+        tokenMint,
         buyer: user_wallet.publicKey,
         chainlinkFeed: mockChainlinkFeed,
         chainlinkProgram: mockChainlinkProgram.publicKey,
@@ -410,6 +413,7 @@ describe("Presale Smart Contract Tests", () => {
     let mintTx = await program.methods
       .withdrawTokens()
       .accounts({
+        owner: owner.publicKey,
         tokenMint,
         tokenProgram: TOKEN_PROGRAM_ID,
       })

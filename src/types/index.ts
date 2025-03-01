@@ -8,7 +8,7 @@ export interface Stage {
   price: BN;
 }
 
-interface PresaleAccount {
+export interface PresaleAccount {
   stages: Stage[];
   startTime: BN;
   endTime: BN;
@@ -16,49 +16,82 @@ interface PresaleAccount {
   owner: PublicKey;
   tokenVaultBalance: BN;
   claimAvailableTime: BN;
+  withdrawAvailableTime: BN;
+  // solVaultBalance: BN;
+  // usdtVaultBalance: BN;
+  totalTokenSold: BN;
+  totalUsdtRaised: BN;
+  totalSolRaised: BN;
 }
 
-interface userAccount {
+export interface vaultAccount {
+  solVault: PublicKey;
+  usdtVault: PublicKey;
+  usdtMint: PublicKey;
+  usdtBump: number;
+  solBump: number;
+  bump: number;
+}
+
+export interface userAccount {
   amountPurchased: BN;
   purchasedTimestamp: BN;
   hasClaimed: boolean;
 }
 
+export interface PresaleContextType {
+  presalePDA: PublicKey | null;
+  vaultPDA: PublicKey | null;
+  userPDA: PublicKey | null;
+  // presaleAccountQuery: UseQueryResult<PresaleAccount>;
+  // vaultAccountQuery: UseQueryResult<vaultAccount>;
+  // userAccountQuery: UseQueryResult<userAccount>;
+  // buyTokenMutation: UseMutationResult<string, Error, BuyTokenProps, unknown>;
+  // claimTokenMutation: UseMutationResult<
+  //   string,
+  //   Error,
+  //   claimTokenProps,
+  //   unknown
+  // >;
+  // withdrawProceedsMutation: UseMutationResult<
+  //   string,
+  //   Error,
+  //   withdrawProceedsProps,
+  //   unknown
+  // >;
+  // depositTokensMutation: UseMutationResult<
+  //   string,
+  //   Error,
+  //   DepositTokensProps,
+  //   unknown
+  // >;
+  // withdrawRemainingTokenMutation: UseMutationResult<
+  //   string,
+  //   Error,
+  //   WithdrawRemainingTokensProps,
+  //   unknown
+  // >;
+  // initializePresaleVault: UseMutationResult<
+  //   string,
+  //   Error,
+  //   InitializePresaleVaultsProps,
+  //   unknown
+  // >;
+}
+
 export interface AdminStageCardProps {
-  stage: Stage;
-  index: number;
-  name: string;
-  startTime: number;
-  endTime: number;
-  price: number;
+  stageIndex?: number;
 }
 
-export interface WithdrawFormProps {
-  withdrawProceeds: UseMutationResult<
-    string,
-    Error,
-    withdrawProceedsProps,
-    unknown
-  >;
+export interface WithdrawRemainingTokensProps {
+  tokenMintKey: PublicKey;
+  ownerTokenAccount: PublicKey;
 }
 
-// Interface for the withdraw tokens form props
-export interface WithdrawTokensProps {
-  withdrawTokens: UseMutationResult<string, Error, void, unknown>;
-  presaleData: UseQueryResult<PresaleAccount, Error>;
-}
-
-export interface CountdownTimerProps {
-  endTime: number;
-}
+export interface CountdownTimerProps {}
 
 export interface StageProgressBarProps {
-  stages: Stage[];
-}
-export interface PresaleStatsProps {
-  totalSHTPSold: number;
-  totalSolRaised: number;
-  totalUsdtRaised: number;
+  stageNames: String[];
 }
 
 export interface InitializePresaleProps {
@@ -80,40 +113,32 @@ export interface InitializePresaleVaultsProps {
 export interface DepositTokensProps {
   amount: number;
   tokenMintKey: PublicKey;
+  ownerTokenAccount: PublicKey;
 }
 
 export interface BuyTokenProps {
   paymentMethod: "USDT" | "SOL"; // Allowed payment methods
   amount: number; // Token amount
+  usdtMint: PublicKey;
+  buyerUsdtAccount: PublicKey;
+  tokenMint: PublicKey;
 }
 
-export interface claimTokenProps {}
-
-export interface ClaimTokenFormProps {
-  claimTokens: UseMutationResult<string, Error, void, unknown>;
-  presaleData: UseQueryResult<PresaleAccount, Error>;
-  userData: UseQueryResult<userAccount, Error>;
+export interface claimTokenProps {
+  tokenMintKey: PublicKey;
+  buyerTokenAccount: PublicKey;
 }
 
 export interface withdrawProceedsProps {
   paymentMethod: "USDT" | "SOL"; // Allowed payment methods
+  usdtMint: PublicKey;
+  ownerUsdtAccount: PublicKey;
 }
 
-export interface TransferToVaultProps {
-  presalePDA: PublicKey;
-  onSuccess: () => void; // Add the onSuccess prop type
-  tokenMint: PublicKey;
-}
-
-export interface BuyFormProps {
-  stages: Stage[];
-  buyTokens: UseMutationResult<string, Error, BuyTokenProps, unknown>;
-}
-
-export interface PresaleProgramAccountParams {
-  account: PublicKey;
-  options?: {
-    refetchInterval?: number;
-    enabled?: boolean;
-  };
+export interface LoadingButtonProps {
+  onClick?: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+  className?: string;
+  children: React.ReactNode;
 }

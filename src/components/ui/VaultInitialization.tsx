@@ -1,19 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { toast } from "react-toastify";
+import { LoadingButton } from "./LoadingButton";
+import { usePresale } from "../data-access/presale";
+import { usePresaleProgramAccount } from "../data-access/presale-data-access";
 
-import { PublicKey } from "@solana/web3.js";
+interface VaultInitializationProps {
+  onInitialized?: () => void; // Add callback prop
+}
 
 export const VaultInitialization = ({
-  onVaultInitialized,
-  presalePDA,
-  initializePresaleVault,
-}: {
-  onVaultInitialized: () => void;
-  presalePDA: PublicKey;
-  initializePresaleVault: any;
-}) => {
+  onInitialized,
+}: VaultInitializationProps) => {
+  const { presalePDA } = usePresale();
+  const { initializePresaleVault } = usePresaleProgramAccount({
+    account: presalePDA!,
+  });
+
+  const [isInitializing, setIsInitializing] = useState(false);
   const [usdtMint, setUsdtMint] = useState("");
 
   const handleVaultInitialize = async () => {
@@ -21,19 +26,20 @@ export const VaultInitialization = ({
       toast.error("Please enter a USDT mint address.");
       return;
     }
-    localStorage.setItem("vaultInitialized", "true");
-
+    setIsInitializing(true);
     try {
-      await initializePresaleVault.mutate({ usdtMint });
-      toast.success("Vault Initialized Successfully!");
-      onVaultInitialized();
+      await initializePresaleVault.mutateAsync({ usdtMint });
+      toast.success("Vault initialized successfully");
+
+      // Call the onInitialized callback
+      if (onInitialized) {
+        onInitialized();
+      }
     } catch (error) {
       console.error("Vault initialization error:", error);
-      toast.error(
-        `Failed to initialize vault: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      toast.error("Failed to initialize vault");
+    } finally {
+      setIsInitializing(false);
     }
   };
 
@@ -50,12 +56,13 @@ export const VaultInitialization = ({
           placeholder="Enter USDT mint address"
         />
       </div>
-      <button
+      <LoadingButton
         onClick={handleVaultInitialize}
-        className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
+        className="w-full"
+        loading={isInitializing}
       >
-        Initialize Vault
-      </button>
+        Initialize Presale Vault
+      </LoadingButton>
     </div>
   );
 };

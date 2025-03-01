@@ -1,5 +1,5 @@
 {
-  "address": "HDekUEGM3hCCHGxorAdMYMhpFVSX14uqydHPHEXsuim4",
+  "address": "BKCejCiguGFjBSZbwJozgiHKw8stSgvLzZkEZMT2tEmn",
   "metadata": {
     "name": "presale",
     "version": "0.1.0",
@@ -47,6 +47,14 @@
               {
                 "kind": "const",
                 "value": [
+                  112,
+                  114,
+                  101,
+                  115,
+                  97,
+                  108,
+                  101,
+                  95,
                   118,
                   97,
                   117,
@@ -117,6 +125,9 @@
               }
             ]
           }
+        },
+        {
+          "name": "token_mint"
         },
         {
           "name": "usdt_mint"
@@ -315,6 +326,14 @@
               {
                 "kind": "const",
                 "value": [
+                  112,
+                  114,
+                  101,
+                  115,
+                  97,
+                  108,
+                  101,
+                  95,
                   118,
                   97,
                   117,
@@ -645,47 +664,6 @@
       ]
     },
     {
-      "name": "get_current_stage",
-      "discriminator": [
-        93,
-        241,
-        216,
-        117,
-        210,
-        158,
-        248,
-        125
-      ],
-      "accounts": [
-        {
-          "name": "presale",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  101,
-                  115,
-                  97,
-                  108,
-                  101
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [],
-      "returns": {
-        "defined": {
-          "name": "Stage"
-        }
-      }
-    },
-    {
       "name": "initialize_presale",
       "discriminator": [
         9,
@@ -827,6 +805,14 @@
               {
                 "kind": "const",
                 "value": [
+                  112,
+                  114,
+                  101,
+                  115,
+                  97,
+                  108,
+                  101,
+                  95,
                   118,
                   97,
                   117,
@@ -953,6 +939,14 @@
               {
                 "kind": "const",
                 "value": [
+                  112,
+                  114,
+                  101,
+                  115,
+                  97,
+                  108,
+                  101,
+                  95,
                   118,
                   97,
                   117,
@@ -1542,6 +1536,14 @@
           },
           {
             "name": "token_vault_balance",
+            "type": "u64"
+          },
+          {
+            "name": "sol_vault_balance",
+            "type": "u64"
+          },
+          {
+            "name": "usdt_vault_balance",
             "type": "u64"
           },
           {

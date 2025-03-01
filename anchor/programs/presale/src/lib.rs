@@ -11,7 +11,7 @@ use anchor_lang::solana_program::{
 };
 use chainlink_solana as chainlink;
 
-declare_id!("HDekUEGM3hCCHGxorAdMYMhpFVSX14uqydHPHEXsuim4");
+declare_id!("BKCejCiguGFjBSZbwJozgiHKw8stSgvLzZkEZMT2tEmn");
 
 #[program]
 pub mod presale{
@@ -27,35 +27,6 @@ pub mod presale{
             end_time: i64
         ) -> Result<()> {
 
-        // // Validate stages
-        // for stage in stages.iter() {
-        //     require!(
-        //         stage.end_time > stage.start_time,
-        //         ErrorCode::InvalidStageTime
-        //     );
-        //     require!(
-        //         stage.price > 0,
-        //         ErrorCode::InvalidPrice
-        //     );
-        // }
-
-        // // Validate that stages are consecutive and within the presale timeframe
-        // for i in 0..stages.len() - 1 {
-        //     require!(
-        //         stages[i].end_time == stages[i + 1].start_time,
-        //         ErrorCode::NonConsecutiveStages
-        //     );
-        // }
-
-        // // Validate overall presale timeframe
-        // require!(
-        //     stages[0].start_time == start_time,
-        //     ErrorCode::InvalidStartTime
-        // );
-        // require!(
-        //     stages[stages.len() - 1].end_time == end_time,
-        //     ErrorCode::InvalidEndTime
-        // );
         *ctx.accounts.presale = Presale {
             owner: ctx.accounts.owner.key(),
             start_time,
@@ -68,6 +39,8 @@ pub mod presale{
             token_bump: ctx.bumps.token_vault,
             token_vault : ctx.accounts.token_vault.key(),
             token_vault_balance: 0,
+            sol_vault_balance: 0,
+            usdt_vault_balance: 0,
             token_mint: ctx.accounts.token_mint.key(),
             claim_available_time: end_time + 24 * 60 * 60,
             withdraw_available_time: end_time + 24 * 60 * 60,
@@ -134,14 +107,6 @@ pub mod presale{
         Ok(())
     }
     
-    pub fn get_current_stage(ctx: Context<GetCurrentStage>) -> Result<Stage> {
-        let presale = &mut ctx.accounts.presale;
-        presale.update_current_stage()?;
-        
-        let current_stage_index: usize = presale.current_stage_index.try_into().unwrap();
-        Ok(presale.stages[current_stage_index])
-    }
-
 
     pub fn buy_tokens(ctx: Context<BuyTokens>, payment_method: PaymentMethod, amount: u64) -> Result<()> {
         let test_chainlink_feed: Pubkey = Pubkey::from_str("11111111111111111111111111111111").unwrap();
@@ -153,6 +118,14 @@ pub mod presale{
         let destination_wallet = &mut ctx.accounts.usdt_vault;
         let sol_destination_wallet = &mut ctx.accounts.sol_vault;
         let usdt_mint = &mut ctx.accounts.usdt_mint;
+        let token_mint = &mut ctx.accounts.token_mint;
+
+         // Get the decimals from both mints
+        let usdt_decimals = usdt_mint.decimals;
+        let token_decimals= token_mint.decimals;
+       
+        
+        
        
         // Update current stage if needed
         presale.update_current_stage()?;
@@ -172,9 +145,8 @@ pub mod presale{
     
         let token_price = current_stage.price; 
 
-        pub const TOKEN_DECIMALS_MULTIPLIER: u128 = 1_000_000_000; // 10^9
-        pub const USDT_DECIMALS_MULTIPLIER: u128 = 1_000_000;      // 10^6
-
+        let  token_decimals_multiplier: u128 = 10u128.pow(token_decimals as u32);
+        let usdt_decimals_multiplier: u128 = 10u128.pow(usdt_decimals as u32);
         // Ensure user provides a valid amount
         require!(amount > 0, ErrorCode::InvalidAmount);
     
@@ -199,25 +171,30 @@ pub mod presale{
                 presale.total_usdt_raised = presale.total_usdt_raised
                     .checked_add(amount)
                     .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
-    
-                    let tokens = (amount as u128)
-                    .checked_mul(TOKEN_DECIMALS_MULTIPLIER) // 10^9 for SPL tokens
-                    .and_then(|x| x.checked_div(USDT_DECIMALS_MULTIPLIER)) // 10^6 for USDT
-                    .and_then(|x| x.checked_div(token_price as u128)) // Divide by price
-                    .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
 
-                let actual_tokens = tokens
-                .checked_div(TOKEN_DECIMALS_MULTIPLIER / USDT_DECIMALS_MULTIPLIER)
+                    presale.usdt_vault_balance = presale.usdt_vault_balance
+                    .checked_add(amount)
+                    .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
+    
+                let tokens = (amount as u128)
+                .checked_mul(token_decimals_multiplier) // 10^9 for SPL tokens
+                .and_then(|x| x.checked_div(usdt_decimals_multiplier)) // 10^6 for USDT
+                .and_then(|x| x.checked_div(token_price as u128)) // Divide by price
                 .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
-            actual_tokens as u64
+
+            let actual_tokens = tokens
+            .checked_div(token_decimals_multiplier / usdt_decimals_multiplier)
+            .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
+        msg!("Number of tokens to receive based on USDT Payment: {}", actual_tokens);
+        actual_tokens as u64
             }
+
+            
             PaymentMethod::SOL => {
                 require!(
                     buyer.get_lamports() >= amount,
                     ErrorCode::InsufficientFunds
                 );
-    
-                // let lamports_to_transfer = amount * LAMPORTS_PER_SOL;
     
                 // Transfer SOL to vault
                 invoke(
@@ -237,6 +214,10 @@ pub mod presale{
                 presale.total_sol_raised = presale.total_sol_raised
                     .checked_add(amount)
                     .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
+
+                    presale.sol_vault_balance = presale.sol_vault_balance
+                    .checked_add(amount)
+                    .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
     
                 // Get the SOL price from Chainlink
                 let sol_price_usd = if ctx.accounts.chainlink_feed.key() == test_chainlink_feed {
@@ -249,21 +230,22 @@ pub mod presale{
                     round.answer.try_into().unwrap_or(0u64)
                 };
                 msg!("SOL Price (USD): {}", sol_price_usd);
-    
+                
                 let payment_in_usdt = (amount as u128)
                 .checked_mul(sol_price_usd as u128) // Convert SOL to USD
                 .and_then(|x| x.checked_div(LAMPORTS_PER_SOL as u128)) // Convert lamports to SOL
                 .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
-            
-            let tokens = (payment_in_usdt as u128)
-                .checked_mul(TOKEN_DECIMALS_MULTIPLIER) // Convert to SPL token units (10^9)
-                .and_then(|x| x.checked_div(USDT_DECIMALS_MULTIPLIER)) // Convert USDT to dollars (10^6)
-                .and_then(|x| x.checked_div(token_price as u128)) // Divide by token price
+    
+                let tokens = (payment_in_usdt as u128)
+                .checked_mul(token_decimals_multiplier) 
+                .and_then(|x| x.checked_div(usdt_decimals_multiplier)) 
+                .and_then(|x| x.checked_div(token_price as u128)) 
                 .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
             
             let actual_tokens = tokens
-            .checked_div(TOKEN_DECIMALS_MULTIPLIER / USDT_DECIMALS_MULTIPLIER)
+            .checked_div(token_decimals_multiplier / usdt_decimals_multiplier)
             .ok_or(ErrorCode::OverflowOrUnderflowOccurred)?;
+             msg!("Number of tokens to receive based on SOL Payment: {}", actual_tokens);
             actual_tokens as u64
             }
         };
@@ -403,6 +385,7 @@ pub mod presale{
                 signer_seeds,
 
             )?;
+            presale.sol_vault_balance = 0;
         },
 
         PaymentMethod::USDT => {
@@ -419,7 +402,7 @@ pub mod presale{
             let cpi_program = ctx.accounts.token_program.to_account_info();
     
             let signer_seeds: &[&[&[u8]]] = &[
-                &[b"vault", presale_key.as_ref(), &[vault.bump]]
+                &[b"presale_vault", presale_key.as_ref(), &[vault.bump]]
              ];
             
             let cpi_context = CpiContext::new(cpi_program, cpi_accounts).with_signer(signer_seeds);
@@ -433,7 +416,9 @@ pub mod presale{
                 cpi_context,
                 usdt_balance,
                 decimals,
-            )?
+            )?;
+
+            presale.usdt_vault_balance = 0;
         }
     }
     Ok(())
@@ -455,9 +440,9 @@ pub mod presale{
             ErrorCode::WithdrawalNotAllowedYet
         );
 
-        let vault_balance = token_vault.amount;
+        let withdrawal_amount = presale.token_vault_balance;
 
-        require!(token_vault.amount > 0 , ErrorCode::InsufficientVaultBalance);
+        require!(token_vault.amount >= withdrawal_amount , ErrorCode::InsufficientVaultBalance);
     
         // Transfer tokens from owner to vault
         let cpi_accounts = TransferChecked {
@@ -482,7 +467,7 @@ pub mod presale{
             // Perform the USDT transfer
             transfer_checked(
                 cpi_context,
-                vault_balance,
+                withdrawal_amount,
                 decimals,
             )?;
 
@@ -537,7 +522,7 @@ pub struct InitializeVaults<'info> {
         init, 
         payer = owner, 
         space = 8 + PresaleVaults::INIT_SPACE,
-        seeds = [b"vault", presale.key().as_ref()],
+        seeds = [b"presale_vault", presale.key().as_ref()],
 		bump
     )]
     pub presale_vaults: Account<'info, PresaleVaults>,
@@ -568,14 +553,6 @@ pub struct InitializeVaults<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
-#[derive(Accounts)]
-pub struct GetCurrentStage<'info> {
-    #[account(mut,
-        seeds = [b"presale"], 
-        bump = presale.bump,
-    )]
-    pub presale: Account<'info, Presale>,
-}
 
 #[derive(Accounts)]
 pub struct DepositPresaleTokens<'info> {
@@ -596,7 +573,8 @@ pub struct DepositPresaleTokens<'info> {
     pub token_mint: InterfaceAccount<'info, Mint>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = owner,
         associated_token::mint = token_mint,
         associated_token::authority = owner,
     
@@ -618,13 +596,13 @@ pub struct BuyTokens<'info> {
         seeds = [b"presale"], 
         bump = presale.bump
     )]
-    pub presale: Account<'info, Presale>,
+    pub presale: Box<Account<'info, Presale>>,
 
     #[account(
-        seeds = [b"vault", presale.key().as_ref()],
+        seeds = [b"presale_vault", presale.key().as_ref()],
         bump = presale_vaults.bump
     )]
-    pub presale_vaults: Account<'info, PresaleVaults>,
+    pub presale_vaults: Box<Account<'info, PresaleVaults>>,
     
     #[account(
         init_if_needed,
@@ -633,22 +611,26 @@ pub struct BuyTokens<'info> {
         seeds = [b"user_info", presale.key().as_ref(), buyer.key().as_ref()],
         bump
     )]
-    pub user_info: Account<'info, UserInfo>,
+    pub user_info: Box<Account<'info, UserInfo>>,
 
     #[account(mut,
         seeds = [b"usdt_vault", presale_vaults.key().as_ref()],
         bump = presale_vaults.usdt_bump
     )]
-    pub usdt_vault: InterfaceAccount<'info, TokenAccount>,
+    pub usdt_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    pub token_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(address = presale_vaults.usdt_mint)]
-    pub usdt_mint: InterfaceAccount<'info, Mint>,
+    pub usdt_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    #[account(mut,
+    #[account(
+        init_if_needed,
+        payer = buyer,
         associated_token::mint = usdt_mint,  // Must be same mint as USDT
         associated_token::authority = buyer  // Owned by the buyer
     )]
-    pub buyer_ata: InterfaceAccount<'info, TokenAccount>,
+    pub buyer_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut,
         seeds = [b"sol_vault", presale_vaults.key().as_ref()],
@@ -675,7 +657,7 @@ pub struct ClaimTokens<'info> {
     )]
     pub presale: Account<'info, Presale>,
     #[account(
-        seeds = [b"vault", presale.key().as_ref()],
+        seeds = [b"presale_vault", presale.key().as_ref()],
         bump
     )]
     pub presale_vaults: Account<'info, PresaleVaults>,
@@ -721,7 +703,7 @@ pub struct WithdrawProceeds<'info> {
     pub presale: Account<'info, Presale>,
 
     #[account(mut,
-        seeds = [b"vault", presale.key().as_ref()],
+        seeds = [b"presale_vault", presale.key().as_ref()],
         bump = presale_vaults.bump
     )]
     pub presale_vaults: Account<'info, PresaleVaults>,
@@ -807,6 +789,8 @@ pub struct Presale {
     pub token_mint: Pubkey,
     pub token_vault: Pubkey,
     pub token_vault_balance: u64,
+    pub sol_vault_balance: u64,
+    pub usdt_vault_balance: u64,
     pub token_bump: u8,
     pub bump: u8,
 }

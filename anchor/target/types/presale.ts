@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/presale.json`.
  */
 export type Presale = {
-  "address": "HDekUEGM3hCCHGxorAdMYMhpFVSX14uqydHPHEXsuim4",
+  "address": "BKCejCiguGFjBSZbwJozgiHKw8stSgvLzZkEZMT2tEmn",
   "metadata": {
     "name": "presale",
     "version": "0.1.0",
@@ -53,6 +53,14 @@ export type Presale = {
               {
                 "kind": "const",
                 "value": [
+                  112,
+                  114,
+                  101,
+                  115,
+                  97,
+                  108,
+                  101,
+                  95,
                   118,
                   97,
                   117,
@@ -123,6 +131,9 @@ export type Presale = {
               }
             ]
           }
+        },
+        {
+          "name": "tokenMint"
         },
         {
           "name": "usdtMint"
@@ -321,6 +332,14 @@ export type Presale = {
               {
                 "kind": "const",
                 "value": [
+                  112,
+                  114,
+                  101,
+                  115,
+                  97,
+                  108,
+                  101,
+                  95,
                   118,
                   97,
                   117,
@@ -651,47 +670,6 @@ export type Presale = {
       ]
     },
     {
-      "name": "getCurrentStage",
-      "discriminator": [
-        93,
-        241,
-        216,
-        117,
-        210,
-        158,
-        248,
-        125
-      ],
-      "accounts": [
-        {
-          "name": "presale",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  101,
-                  115,
-                  97,
-                  108,
-                  101
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [],
-      "returns": {
-        "defined": {
-          "name": "stage"
-        }
-      }
-    },
-    {
       "name": "initializePresale",
       "discriminator": [
         9,
@@ -833,6 +811,14 @@ export type Presale = {
               {
                 "kind": "const",
                 "value": [
+                  112,
+                  114,
+                  101,
+                  115,
+                  97,
+                  108,
+                  101,
+                  95,
                   118,
                   97,
                   117,
@@ -959,6 +945,14 @@ export type Presale = {
               {
                 "kind": "const",
                 "value": [
+                  112,
+                  114,
+                  101,
+                  115,
+                  97,
+                  108,
+                  101,
+                  95,
                   118,
                   97,
                   117,
@@ -1548,6 +1542,14 @@ export type Presale = {
           },
           {
             "name": "tokenVaultBalance",
+            "type": "u64"
+          },
+          {
+            "name": "solVaultBalance",
+            "type": "u64"
+          },
+          {
+            "name": "usdtVaultBalance",
             "type": "u64"
           },
           {
